@@ -1,0 +1,7 @@
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: quantia-web-cert
+spec:
+  domains:
+    - quantia.example.com

@@ -1,0 +1,141 @@
+
+@{
+    Layout = null;
+    ViewBag.Section = "Dashboard";
+}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Create Strategy</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', sans-serif;
+            background-color: #f9fafb;
+        }
+
+        .container {
+            display: flex;
+        }
+
+        .sidebar {
+            width: 220px;
+            background-color: #ffffff;
+            padding: 20px;
+            border-right: 1px solid #e5e7eb;
+            height: 100vh;
+        }
+
+        .main {
+            flex-grow: 1;
+            padding: 40px;
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 30px;
+        }
+
+        .form-section {
+            display: grid;
+            gap: 20px;
+            max-width: 800px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 20px;
+        }
+
+        label {
+            font-weight: 600;
+            margin-bottom: 5px;
+            display: block;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #d1d5db;
+            background-color: #fff;
+        }
+
+        .button {
+            margin-top: 20px;
+            padding: 12px 20px;
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+            .button:hover {
+                background-color: #1e40af;
+            }
+    </style>
+</head>
+<body>
+    <div style="display: flex;">
+        @Html.Partial("~/Views/Shared/_Sidebar.cshtml")
+
+        <div style="flex-grow: 1; padding: 40px;">
+            <!-- Contenu principal ici -->
+            <h1>Strategy</h1>
+            <div class="form-section">
+                <div>
+                    <label>Set Parameters</label>
+                    <div class="form-row">
+                        <input type="text" placeholder="Asset" />
+                        <select>
+                            <option>Timeframe</option>
+                            <option>1h</option>
+                            <option>4h</option>
+                            <option>1d</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label>Entry Conditions</label>
+                    <div class="form-row">
+                        <select>
+                            <option>RSI crosses below 30</option>
+                            <option>RSI crosses below 20</option>
+                        </select>
+                        <select>
+                            <option>MACD bullish crossover</option>
+                            <option>MACD histogram above zero</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label>Exit Conditions</label>
+                    <div class="form-row">
+                        <select>
+                            <option>RSI crosses above 50</option>
+                            <option>RSI crosses above 70</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label>Risk Management</label>
+                    <div class="form-row">
+                        <input type="number" placeholder="Stop Loss %" />
+                        <input type="number" placeholder="Take Profit %" />
+                    </div>
+                </div>
+
+                <button class="button">Create</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

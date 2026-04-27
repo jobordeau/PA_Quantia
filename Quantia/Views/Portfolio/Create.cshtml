@@ -1,0 +1,33 @@
+@using Quantia.Models.ViewModels
+@model NewTransactionModel
+@{
+    ViewBag.Section = "Portfolio";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Add Transaction</title>
+</head>
+<body>
+    <h1>Add Transaction</h1>
+
+    <form action="/Portfolio/Add" method="post">
+        <!-- Crypto -->
+        <label>Symbol</label>
+        <input name="CryptoSymbol" placeholder="BTC" />
+
+        <!-- Quantité -->
+        <label>Amount</label>
+        <input name="Amount" />
+
+        <!-- Prix -->
+        <label>Price at Purchase</label>
+        <input name="PriceAtPurchase" />
+
+        <button type="submit">Save</button>
+    </form>
+</body>
+</html>

@@ -1,0 +1,163 @@
+name: Deploy
+
+on:
+  push:
+    branches: [develop, release, main]
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options: [dev, recette, prod]
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  resolve-env:
+    name: Resolve target environment
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.pick.outputs.environment }}
+    steps:
+      - id: pick
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "environment=${{ inputs.environment }}" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
+            echo "environment=dev" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.ref }}" == "refs/heads/release" ]]; then
+            echo "environment=recette" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.ref }}" == "refs/heads/main" || "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "environment=prod" >> "$GITHUB_OUTPUT"
+          else
+            echo "Unknown branch — refusing to deploy" && exit 1
+          fi
+
+  build-and-push:
+    name: Build and push images
+    needs: resolve-env
+    runs-on: ubuntu-latest
+    environment: ${{ needs.resolve-env.outputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      image_tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute image tag
+        id: tag
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=$(echo ${{ github.sha }} | cut -c1-7)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOYER_SA }}
+
+      - name: Configure docker auth for Artifact Registry
+        run: gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Quantia/Dockerfile
+          push: true
+          tags: |
+            ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_AR_REPO }}/quantia-web:${{ steps.tag.outputs.tag }}
+            ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_AR_REPO }}/quantia-web:${{ needs.resolve-env.outputs.environment }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push sentiment-job image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./sentiment_job
+          file: ./sentiment_job/Dockerfile
+          push: true
+          tags: |
+            ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_AR_REPO }}/quantia-sentiment-job:${{ steps.tag.outputs.tag }}
+            ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_AR_REPO }}/quantia-sentiment-job:${{ needs.resolve-env.outputs.environment }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy-gke:
+    name: Deploy to GKE
+    needs: [resolve-env, build-and-push]
+    runs-on: ubuntu-latest
+    environment: ${{ needs.resolve-env.outputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOYER_SA }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Install gke-gcloud-auth-plugin
+        run: gcloud components install gke-gcloud-auth-plugin --quiet
+
+      - name: Get GKE credentials
+        run: |
+          gcloud container clusters get-credentials ${{ vars.GKE_CLUSTER_NAME }} \
+            --region ${{ vars.GCP_REGION }} \
+            --project ${{ vars.GCP_PROJECT_ID }}
+
+      - name: Install kustomize
+        run: |
+          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          sudo mv kustomize /usr/local/bin/
+
+      - name: Set image tag in overlay
+        working-directory: deploy/kubernetes/overlays/${{ needs.resolve-env.outputs.environment }}
+        run: |
+          kustomize edit set image \
+            ghcr.io/your-org/quantia-web=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_AR_REPO }}/quantia-web:${{ needs.build-and-push.outputs.image_tag }}
+
+      - name: Sync database connection secret
+        run: |
+          kubectl create namespace quantia-${{ needs.resolve-env.outputs.environment }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create secret generic quantia-web-secrets \
+            --namespace quantia-${{ needs.resolve-env.outputs.environment }} \
+            --from-literal=ConnectionStrings__DefaultConnection='${{ secrets.DB_CONNECTION_STRING }}' \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Apply manifests
+        run: kustomize build deploy/kubernetes/overlays/${{ needs.resolve-env.outputs.environment }} | kubectl apply -f -
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status \
+            deployment/${{ needs.resolve-env.outputs.environment }}-quantia-web \
+            --namespace quantia-${{ needs.resolve-env.outputs.environment }} \
+            --timeout=5m
+
+      - name: Smoke test /health
+        run: |
+          kubectl run smoke-test \
+            --rm -i --restart=Never \
+            --namespace quantia-${{ needs.resolve-env.outputs.environment }} \
+            --image=curlimages/curl:8.8.0 \
+            -- curl -fsSL "http://${{ needs.resolve-env.outputs.environment }}-quantia-web.quantia-${{ needs.resolve-env.outputs.environment }}.svc.cluster.local/health"

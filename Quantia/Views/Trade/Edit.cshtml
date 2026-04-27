@@ -1,0 +1,82 @@
+@model Quantia.Models.TradeModel
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@{
+    ViewBag.Section = "Trade";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<h2>Close Trade – @Model.CryptoSymbol</h2>
+
+<form asp-action="Edit" asp-controller="Trade" method="post">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="Id" />
+
+    <!-- Info read-only -->
+    <p><strong>Quantity:</strong> @Model.Quantity</p>
+    <p><strong>Buy Price:</strong> @Model.BuyPrice.ToString("F2")</p>
+    <p><strong>Buy Date:</strong> @Model.BuyDate.ToString("yyyy-MM-dd HH:mm")</p>
+    <!-- Saisie de la vente -->
+    <div class="form-group">
+        <label asp-for="SellPrice">Sell Price ($)</label>
+        <input asp-for="SellPrice" type="number" step="0.01" class="form-control" required />
+        <span asp-validation-for="SellPrice" class="text-danger"></span>
+    </div>
+
+    <div class="form-group">
+        <label asp-for="SellDate">Sell Date</label>
+        <input asp-for="SellDate" type="datetime-local"
+               value="@DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm")"
+               class="form-control" required />
+        <span asp-validation-for="SellDate" class="text-danger"></span>
+    </div>
+
+    <button type="submit" class="btn btn-primary mt-3">Close Trade</button>
+
+    <script>
+        function localToUtcStr(localStr) {
+          return new Date(localStr).toISOString().slice(0,16);   // trims seconds+Z
+        }
+
+        document.addEventListener("DOMContentLoaded", async () => {
+
+            // Récupère la valeur sélectionnée
+            const symbol = "@Model.CryptoSymbol";
+
+            // Récupère la date de départ en local
+            const buyDateInput = document.querySelector('#SellDate').value;
+
+            // Convertit en objet Date
+            let startDate = new Date(buyDateInput);
+
+            // Ajoute 1 jour
+            let endDate = new Date(startDate);
+
+            // Convertit les deux dates en format ISO (UTC)
+            const start = localToUtcStr(startDate);
+            const end = localToUtcStr(endDate);
+
+            // Construit l'URL avec les dates UTC
+            const url = `https://api-test-049u.onrender.com/pattern/load-data?symbol=${symbol}&start_date=${start}&end_date=${end}`;
+
+            try {
+                const response = await fetch(url);
+                const json = await response.json();
+                            if (json.data && json.data.length > 0) {
+                const closePrice = json.data[0].close;
+                console.log("Close price:", closePrice);
+
+                // Injecte la valeur dans le champ BuyPrice
+                document.querySelector('[name="SellPrice"]').value = closePrice;
+            } else {
+                console.warn("Pas de données dans la réponse API");
+            }
+
+            } catch (error) {
+                console.error("Erreur lors du fetch :", error);
+            }
+        });
+
+    </script>
+
+</form>
+

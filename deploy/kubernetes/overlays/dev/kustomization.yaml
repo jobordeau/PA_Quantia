@@ -1,0 +1,51 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: quantia-dev
+
+namePrefix: dev-
+
+resources:
+  - ../../base
+
+commonLabels:
+  app.kubernetes.io/instance: quantia-dev
+  environment: dev
+
+images:
+  - name: ghcr.io/your-org/quantia-web
+    newName: europe-west1-docker.pkg.dev/REPLACE_WITH_DEV_PROJECT/quantia-dev-images/quantia-web
+    newTag: dev
+
+patches:
+  - target:
+      kind: Deployment
+      name: quantia-web
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: quantia-web
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 1
+      - op: replace
+        path: /spec/maxReplicas
+        value: 2
+  - target:
+      kind: ConfigMap
+      name: quantia-web-config
+    patch: |-
+      - op: replace
+        path: /data/ASPNETCORE_ENVIRONMENT
+        value: Development
+  - target:
+      kind: Ingress
+      name: quantia-web
+    patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: dev.quantia.example.com

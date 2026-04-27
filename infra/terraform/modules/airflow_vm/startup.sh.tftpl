@@ -1,0 +1,52 @@
+#!/bin/bash
+set -euxo pipefail
+
+DATA_DEVICE="/dev/disk/by-id/google-airflow-data"
+DATA_MOUNT="/mnt/airflow"
+
+if ! blkid "$${DATA_DEVICE}"; then
+  mkfs.ext4 -F "$${DATA_DEVICE}"
+fi
+mkdir -p "$${DATA_MOUNT}"
+mount -o discard,defaults "$${DATA_DEVICE}" "$${DATA_MOUNT}" || true
+
+mkdir -p "$${DATA_MOUNT}/dags" "$${DATA_MOUNT}/logs" "$${DATA_MOUNT}/plugins"
+chown -R 50000:50000 "$${DATA_MOUNT}"
+
+if [ -n "${git_repo_url}" ]; then
+  toolbox --bind=/usr/bin/git -- git clone --branch ${git_branch} ${git_repo_url} /tmp/quantia-dags || true
+  cp -r /tmp/quantia-dags/airflow/dags/* "$${DATA_MOUNT}/dags/" || true
+fi
+
+cat > /etc/systemd/system/airflow.service <<'EOF'
+[Unit]
+Description=Quantia Airflow standalone container
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Restart=always
+RestartSec=10
+ExecStartPre=-/usr/bin/docker rm -f airflow
+ExecStart=/usr/bin/docker run --name airflow \
+  -p 8080:8080 \
+  -e AIRFLOW__CORE__EXECUTOR=LocalExecutor \
+  -e AIRFLOW__CORE__LOAD_EXAMPLES=false \
+  -e AIRFLOW_VAR_BIGQUERY_PROJECT=${bigquery_project} \
+  -e AIRFLOW_VAR_BIGQUERY_DATASET=${bigquery_dataset} \
+  -e AIRFLOW_VAR_BIGQUERY_TABLE=${bigquery_table} \
+  -e AIRFLOW_VAR_ENVIRONMENT=${environment} \
+  -v /mnt/airflow/dags:/opt/airflow/dags \
+  -v /mnt/airflow/logs:/opt/airflow/logs \
+  -v /mnt/airflow/plugins:/opt/airflow/plugins \
+  ${airflow_image} \
+  standalone
+ExecStop=/usr/bin/docker stop airflow
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable airflow.service
+systemctl start airflow.service

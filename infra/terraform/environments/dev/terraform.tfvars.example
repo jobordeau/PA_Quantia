@@ -1,0 +1,12 @@
+project_id = "my-quantia-dev-project"
+region     = "europe-west1"
+zone       = "europe-west1-b"
+
+dags_git_repo = "https://github.com/your-org/PA_2025_UPGRADED.git"
+
+master_authorized_cidrs = [
+  {
+    cidr = "0.0.0.0/0"
+    name = "any-dev"
+  }
+]

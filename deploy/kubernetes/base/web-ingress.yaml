@@ -1,0 +1,28 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: quantia-web
+  labels:
+    app.kubernetes.io/name: quantia-web
+    app.kubernetes.io/part-of: quantia
+  annotations:
+    kubernetes.io/ingress.class: "gce"
+    kubernetes.io/ingress.global-static-ip-name: "quantia-web-ip"
+    networking.gke.io/managed-certificates: "quantia-web-cert"
+spec:
+  defaultBackend:
+    service:
+      name: quantia-web
+      port:
+        number: 80
+  rules:
+    - host: REPLACE_WITH_DOMAIN
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: quantia-web
+                port:
+                  number: 80

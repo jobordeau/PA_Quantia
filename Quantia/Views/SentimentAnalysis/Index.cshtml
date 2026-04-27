@@ -1,0 +1,638 @@
+@model Quantia.Services.SentimentDto
+@{
+    Layout = null;
+    ViewBag.Section = "SentimentAnalysis";
+
+    var opts = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase };
+    var clustersJson = System.Text.Json.JsonSerializer.Serialize(Model?.Clusters ?? new(), opts);
+
+    double s01 = Model?.Global_Index ?? .5;
+    int fg = (int)System.Math.Round(s01 * 100);
+
+    string fgColor = fg <= 25 ? "#8b0000"
+                    : fg < 46 ? "#ff8c00"
+                    : fg < 54 ? "#ffd700"
+                    : fg < 75 ? "#90ee90"
+                    : "#00c853";
+
+    string fgLabel = fg <= 25 ? "Extreme Fear"
+                    : fg < 46 ? "Fear"
+                    : fg < 54 ? "Neutral"
+                    : fg < 75 ? "Greed"
+                    : "Extreme Greed";
+
+    var lastUpdate = DateTime.UtcNow.ToString("dd MMM HH:mm",
+                        System.Globalization.CultureInfo.InvariantCulture);
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>Sentiment dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" crossorigin></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
+    <style>
+        :root {
+            --bg: #f9fafb;
+            --card: #fff;
+            --border: #e5e7eb;
+            --impactPos: #4ade80;
+            --impactNeg: #ef4444
+        }
+
+        *, *:before, *:after {
+            box-sizing: border-box;
+            margin: 0
+        }
+
+        body {
+            font-family: Inter,Segoe UI,sans-serif;
+            background: var(--bg)
+        }
+
+        .wrap {
+            display: flex;
+            min-height: 100vh
+        }
+
+        .main {
+            flex: 1;
+            padding: 32px 40px 60px
+        }
+
+        .topinfo {
+            font-size: .75rem;
+            color: #555;
+            text-align: right;
+            margin-bottom: 12px
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 3fr 2fr;
+            gap: 40px;
+            align-items: start
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            box-shadow: 0 1px 4px rgba(0,0,0,.05);
+            padding: 20px
+        }
+
+        .date-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 16px
+        }
+
+            .date-controls input, .date-controls select {
+                padding: 8px 12px;
+                border-radius: 6px;
+                border: 1px solid #ccc;
+                font: inherit
+            }
+
+            .date-controls button {
+                padding: 8px 16px;
+                border-radius: 6px;
+                background: var(--bg);
+                border: 1px solid #ccc;
+                cursor: pointer
+            }
+
+        #sentChart {
+            width: 100%;
+            height: 450px
+        }
+
+        #infoCard {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            display: none;
+            padding: 10px
+        }
+
+        .fg-bar {
+            position: relative;
+            flex: 1;
+            height: 28px;
+            border-radius: 14px;
+            overflow: hidden
+        }
+
+        .fg-point {
+            position: absolute;
+            top: -3px;
+            width: 2px;
+            height: 34px;
+            background: #000
+        }
+
+        .fg-val {
+            font-weight: 600;
+            font-size: 24px;
+            min-width: 82px;
+            text-align: right
+        }
+
+        .fg-label {
+            margin-top: 10px;
+            font-weight: 600;
+            font-size: 1rem
+        }
+
+        .topicsCard {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            height: calc(100vh - 160px)
+        }
+
+        .controls {
+            display: flex;
+            gap: 8px;
+            margin: 16px 0
+        }
+
+            .controls select, .controls input {
+                padding: 8px 12px;
+                border-radius: 6px;
+                border: 1px solid #ccc;
+                font: inherit
+            }
+
+        #orderBtn, #prevHit, #nextHit {
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            background: var(--bg);
+            cursor: pointer
+        }
+
+        .topicsPane {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            min-width: 0;
+            padding-right: 6px
+        }
+
+        .topic {
+            cursor: pointer;
+            padding: 20px;
+            border-left: 6px solid;
+            border-radius: 8px;
+            background: var(--card);
+            border: 1px solid var(--border);
+            word-break: break-word
+        }
+            /* on neutralise l’ancienne couleur verte/rouge */
+            .topic.bullish, .topic.bearish {
+                border-color: inherit
+            }
+
+        .chev {
+            display: inline-block;
+            transition: transform .2s
+        }
+
+        .topic.open .chev {
+            transform: rotate(90deg)
+        }
+
+        .topicBody {
+            display: none;
+            margin-top: 4px
+        }
+
+        .topic.open .topicBody {
+            display: block
+        }
+
+        .score-badge {
+            display: inline-block;
+            padding: 3px 6px;
+            margin-left: 8px;
+            border-radius: 6px;
+            font-size: .8rem;
+            background: #ddd
+        }
+
+        .impactWrap {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 8px 0
+        }
+
+        .impactTrack {
+            position: relative;
+            flex: 1;
+            height: 12px;
+            background: #f0f0f0;
+            border-radius: 6px;
+            overflow: hidden
+        }
+
+        .impactFill {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 12px;
+            border-radius: 6px
+        }
+
+        .impactVal {
+            font-size: .8rem;
+            font-weight: 600;
+            padding: 3px 6px;
+            border-radius: 6px;
+            background: #eef;
+            white-space: nowrap
+        }
+
+        .msgPre, .msgFull {
+            background: #f3f4f6;
+            padding: 6px 8px;
+            border-radius: 4px;
+            margin: 4px 0;
+            cursor: pointer
+        }
+
+        .msgPre {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis
+        }
+
+        .msgFull {
+            display: none
+        }
+
+        .msgLink {
+            margin-left: 4px;
+            text-decoration: none;
+            color: #0369a1;
+            font-size: .8rem;
+            word-break: break-all
+        }
+
+        mark.hit {
+            background: #fff59d;
+            padding: 0
+        }
+
+        @@media(max-width:640px) {
+            #prevHit, #nextHit {
+                display: none
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        @Html.Partial("~/Views/Shared/_Sidebar.cshtml")
+        <div class="main">
+            <div class="topinfo">Last update @lastUpdate UTC</div>
+            <h1 style="margin-bottom:24px">Sentiment Analysis</h1>
+
+            <div class="grid">
+                <!-- COL 1 -->
+                <div>
+                    <div class="date-controls">
+                        <label>Asset:</label>
+                        <select id="assetSel"><option value="btc">Bitcoin</option><option value="eth">Ethereum</option></select>
+                        <label>From:</label><input id="dateFrom" type="date">
+                        <label>To:</label><input id="dateTo" type="date">
+                        <button id="loadBtn">Afficher</button>
+                    </div>
+
+                    <div class="card" style="position:relative">
+                        <h2 style="margin:0 0 14px;font-size:1.15rem">Score history</h2>
+                        <canvas id="sentChart"></canvas>
+                        <div id="infoCard" class="card"></div>
+                    </div>
+
+                    <div class="card" style="margin-top:32px">
+                        <h3 style="margin-top:0">Fear &amp; Greed Index</h3>
+                        <div style="display:flex;align-items:center;gap:14px">
+                            <div class="fg-bar" style="background:linear-gradient(
+                             to right,
+                             #8b0000 0%,#8b0000 25%,
+                             #ff8c00 25%,#ff8c00 46%,
+                             #ffd700 46%,#ffd700 54%,
+                             #90ee90 54%,#90ee90 75%,
+                             #00c853 75%,#00c853 100%)">
+                                <div class="fg-point" style="left:@fg%;"></div>
+                            </div>
+                            <span class="fg-val" style="color:@fgColor">@fg/100</span>
+                        </div>
+                        <div class="fg-label" style="color:@fgColor">Now : <strong>@fgLabel</strong></div>
+                    </div>
+                </div>
+
+                <!-- COL 2 -->
+                <div class="card topicsCard">
+                    <h2 style="margin:0">Topics</h2>
+                    <div class="controls">
+                        <select id="critSel"><option value="impact">Impact</option><option value="score">Score</option></select>
+                        <button id="orderBtn">↓</button>
+                        <input id="searchBox" type="search" placeholder="Search…" style="flex:1" autocomplete="off">
+                        <button id="prevHit">◀</button><button id="nextHit">▶</button>
+                    </div>
+                    <div id="topicsPane" class="topicsPane"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* ---------- UTILS & API ------------------------------ */
+        const fgCol = v => {
+            const p = v * 100;
+            return p <= 25 ? '#8b0000' : p < 46 ? '#ff8c00' : p < 54 ? '#ffd700' : p < 75 ? '#90ee90' : '#00c853';
+        };
+
+        const apiHist = (from, to) => {
+            if (from && to) return fetch(`/api/sentiment/history?from=${from}T00:00:00Z&to=${to}T23:59:59Z`).then(r => r.json());
+            /* 720 h = 30 j */
+            return fetch(`/api/sentiment/history?hours=720`).then(r => r.json());
+        };
+        const apiDet = ts => fetch(`/api/sentiment/detail?ts=${encodeURIComponent(ts)}`).then(r => r.ok ? r.json() : null);
+
+        /* ---------- DATE PICKERS ----------------------------- */
+        function setDefaultDates() {
+            const today = new Date();
+            const from = new Date(today);
+            from.setDate(from.getDate() - 30);
+            dateFrom.value = from.toISOString().split('T')[0];
+            dateTo.value = today.toISOString().split('T')[0];
+        }
+        const dateFrom = document.getElementById('dateFrom');
+        const dateTo = document.getElementById('dateTo');
+        setDefaultDates();
+
+        /* ---------- CHART ------------------------------------ */
+        let chart, pts, col;
+        let asset = 'btc';
+        const assetSel = document.getElementById('assetSel');
+        const loadBtn = document.getElementById('loadBtn');
+                async function loadAndDraw() {
+            asset = assetSel.value;
+            const from = dateFrom.value, to = dateTo.value;
+            const rows = await apiHist(from, to);
+
+            pts = rows.map(h => ({
+                x: new Date(h.ts),
+                y: asset === 'btc' ? h.price_btc : h.price_eth,
+                score: h.score
+            })).filter(p => p.y && !isNaN(p.x));
+
+            const sentChart = document.getElementById('sentChart');
+            const infoCard = document.getElementById('infoCard');
+
+            if (pts.length === 0) {
+                sentChart.style.display = 'none';
+                infoCard.style.display = 'none';
+
+                if (!document.getElementById('noData')) {
+                    const noDataMsg = document.createElement('div');
+                    noDataMsg.id = 'noData';
+                    noDataMsg.textContent = 'Aucune donnée disponible pour la période sélectionnée.';
+                    noDataMsg.style.padding = '20px';
+                    noDataMsg.style.color = '#555';
+                    noDataMsg.style.fontStyle = 'italic';
+                    sentChart.parentElement.appendChild(noDataMsg);
+                }
+
+                return;
+            }
+
+            const existingMsg = document.getElementById('noData');
+            if (existingMsg) existingMsg.remove();
+            sentChart.style.display = 'block';
+
+            col = pts.map(p => fgCol(p.score));
+
+            // ➕ Mise à jour du Fear & Greed Index et des topics
+            const last = pts[pts.length - 1];
+            const lastScore = last.score;
+            const lastTs = last.x.toISOString();
+
+            const fg = Math.round(lastScore * 100);
+            const fgColor = fg <= 25 ? "#8b0000"
+                          : fg < 46 ? "#ff8c00"
+                          : fg < 54 ? "#ffd700"
+                          : fg < 75 ? "#90ee90"
+                          : "#00c853";
+            const fgLabel = fg <= 25 ? "Extreme Fear"
+                          : fg < 46 ? "Fear"
+                          : fg < 54 ? "Neutral"
+                          : fg < 75 ? "Greed"
+                          : "Extreme Greed";
+
+            document.querySelector('.fg-point').style.left = `${fg}%`;
+            const fgVal = document.querySelector('.fg-val');
+            fgVal.textContent = `${fg}/100`;
+            fgVal.style.color = fgColor;
+            const fgLabelElem = document.querySelector('.fg-label');
+            fgLabelElem.innerHTML = `Now : <strong>${fgLabel}</strong>`;
+            fgLabelElem.style.color = fgColor;
+
+            const j = await apiDet(lastTs);
+            if (j && j.clusters) {
+                base = j.clusters;
+                clusters = [...base];
+                searchTerm = '';
+                searchBox.value = '';
+                render();
+            }
+
+            if (!chart) {
+                chart = new Chart(sentChart, {
+                    type: 'scatter',
+                    data: {
+                        datasets: [{
+                            data: pts,
+                            pointRadius: 5,
+                            pointBackgroundColor: col,
+                            pointBorderColor: col,
+                            showLine: true,
+                            borderColor: '#000',
+                            borderWidth: 0.5,
+                            tension: 0.15,
+                            order: 1
+                        }]
+                    },
+                    options: {
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                displayColors: false,
+                                backgroundColor: ctx => col[ctx.tooltip.dataPoints[0].dataIndex],
+                                callbacks: {
+                                    title: ctx => new Date(ctx[0].parsed.x).toLocaleString('en-GB', {
+                                        day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+                                    }),
+                                    label: ctx => [
+                                        `Price : $${ctx.parsed.y.toFixed(2)}`,
+                                        `Score : ${pts[ctx.dataIndex].score.toFixed(3)}`
+                                    ]
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                type: 'time',
+                                time: { unit: 'hour', tooltipFormat: 'dd MMM HH:mm' },
+                                ticks: {
+                                    autoSkip: false,
+                                    callback: function (val) {
+                                        const d = new Date(this.getLabelForValue(val));
+                                        return d.getUTCHours() === 0
+                                            ? d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
+                                            : '';
+                                    }
+                                },
+                                title: { display: true, text: 'Date (UTC)' }
+                            },
+                            y: {
+                                title: { display: true, text: 'Price (USD)' },
+                                beginAtZero: false
+                            }
+                        },
+                        onClick: async (_, els) => {
+                            if (!els.length) return;
+                            const idx = els[0].index;
+                            const x = pts[idx].x;
+
+                            infoCard.style.display = 'block';
+                            infoCard.innerHTML = `<strong>${x.toLocaleDateString('en-GB', {
+                                day: '2-digit', month: 'short'
+                            })} ${x.toLocaleTimeString('en-GB', {
+                                hour: '2-digit', minute: '2-digit'
+                            })}</strong><br>Price : $${pts[idx].y.toFixed(2)}<br>Score : ${pts[idx].score.toFixed(3)}`;
+
+                            const j = await apiDet(x.toISOString());
+                            if (j && j.clusters) {
+                                base = j.clusters;
+                                clusters = [...base];
+                                searchTerm = '';
+                                searchBox.value = '';
+                                render();
+                            }
+                        }
+                    }
+                });
+            } else {
+                chart.data.datasets[0].data = pts;
+                chart.data.datasets[0].pointBackgroundColor = col;
+                chart.data.datasets[0].pointBorderColor = col;
+                chart.update();
+            }
+        }
+        loadBtn.onclick = loadAndDraw;
+        assetSel.onchange = loadAndDraw;
+        window.addEventListener('DOMContentLoaded', loadAndDraw);
+        setInterval(loadAndDraw, 60000)
+
+        /* ---------- TOPICS ----------------------------------- */
+        let base = @Html.Raw(clustersJson), clusters = [...base];
+        let crit = 'impact', order = 'desc', searchTerm = '';
+        let hits = [], hitIdx = -1;
+        const maxImpact = l => Math.max(...l.map(c => Math.abs(+c.delta || 0)), .001);
+        const badge = v => `<span class="score-badge" style="background:${fgCol(v)}">score ${v.toFixed(2)}</span>`;
+        const PRE = 280;
+
+        function mkMsg(text, url = '') {
+            const link = url ? `<a class="msgLink" target="_blank" href="${url}">↗</a>` : '';
+            const safe = text.replace(/</g, '&lt;'); const short = safe.length > PRE ? safe.slice(0, PRE) + '…' : safe;
+            return [`<div class="msgPre">${short}${link}</div>`, `<div class="msgFull">${safe}${link}</div>`];
+        }
+
+        function highlight(html, term) { if (!term) return html; const esc = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); return html.replace(new RegExp(esc, 'gi'), m => `<mark class="hit">${m}</mark>`); }
+
+        /* *****  NOUVELLE version 100 % couleur ***** */
+        function topicCard(c, norm) {
+            const pct = (Math.abs(c.delta) / norm * 100).toFixed(1);
+            const delta = `${c.delta > 0 ? '+' : ''}${c.delta.toFixed(3)}`;
+            const col = fgCol(c.avg || 0);                 // ← couleur continue
+            const msgs = c.fullMessages?.length ? c.fullMessages : (c.examples || []);
+            const urls = c.urls || [];
+            let blocks = '';
+            msgs.forEach((m, i) => { const [pre, full] = mkMsg(m, urls[i]); blocks += pre + full; });
+            const title = highlight(`${c.delta > 0 ? '🔺' : '🔻'} ${c.topic || 'unknown'} ${badge(c.avg || 0)}`, searchTerm);
+            const summary = highlight(c.summary || '', searchTerm);
+
+            return `<div class="topic" style="border-color:${col}">
+                      <h3><span class="chev">▸</span>&nbsp;${title}</h3>
+                      <div class="impactWrap">
+                          <div class="impactTrack"><div class="impactFill" style="width:${pct}%;background:${col}"></div></div>
+                          <span class="impactVal" style="background:${col}20;border:1px solid ${col}">Impact ${delta}</span>
+                      </div>
+                      <div class="topicBody">
+                          <p>${summary}</p>
+                          ${highlight(blocks, searchTerm)}
+                      </div>
+                    </div>`;
+        }
+        /* ***************************************************** */
+
+        const topicsPane = document.getElementById('topicsPane');
+        const searchBox = document.getElementById('searchBox');
+        const prevBtn = document.getElementById('prevHit'); const nextBtn = document.getElementById('nextHit');
+
+        function render() {
+            let list = clusters.filter(c => {
+                const hay = (c.topic || '') + ' ' + (c.summary || ' ') + ' ' + (c.fullMessages || []).join(' ');
+                return !searchTerm || hay.toLowerCase().includes(searchTerm.toLowerCase());
+            });
+            list.sort((a, b) => {
+                if (crit === 'score') return order === 'desc' ? b.avg - a.avg : a.avg - b.avg;
+                const da = Math.abs(a.delta), db = Math.abs(b.delta);
+                return order === 'desc' ? db - da : da - db;
+            });
+            const norm = maxImpact(list);
+            topicsPane.innerHTML = list.map(c => topicCard(c, norm)).join('');
+            if (searchTerm) { topicsPane.querySelectorAll('.topic').forEach(t => { if (t.querySelector('mark.hit')) t.classList.add('open'); }); }
+            buildHitIndex();
+        }
+        render();
+
+        function revealAround(el) {
+            const topic = el.closest('.topic'); topic.classList.add('open');
+            const full = el.closest('.msgFull');
+            if (full) { full.style.display = 'block'; const pre = full.previousElementSibling; if (pre && pre.classList.contains('msgPre')) pre.style.display = 'none'; }
+            else { const pre = el.closest('.msgPre'); if (pre) { const f = pre.nextElementSibling; if (f) { f.style.display = 'block'; pre.style.display = 'none'; } } }
+        }
+
+        function buildHitIndex() { hits = [...topicsPane.querySelectorAll('mark.hit')]; hitIdx = -1; prevBtn.disabled = nextBtn.disabled = hits.length === 0; }
+        function scrollToHit(i) {
+            if (!hits.length) return; hitIdx = (i + hits.length) % hits.length; hits.forEach(h => h.style.outline = 'none');
+            const el = hits[hitIdx]; revealAround(el); el.style.outline = '2px solid var(--impactPos)'; el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        searchBox.oninput = () => { searchTerm = searchBox.value.trim(); render(); if (hits.length) scrollToHit(0); };
+        prevBtn.onclick = () => scrollToHit(hitIdx - 1);
+        nextBtn.onclick = () => scrollToHit(hitIdx + 1);
+
+        topicsPane.addEventListener('click', e => {
+            const header = e.target.closest('.topic h3'); if (header) { header.parentElement.classList.toggle('open'); return; }
+            const pre = e.target.closest('.msgPre'); if (pre) { pre.style.display = 'none'; pre.nextElementSibling.style.display = 'block'; return; }
+            const full = e.target.closest('.msgFull'); if (full) { full.style.display = 'none'; full.previousElementSibling.style.display = 'block'; return; }
+        });
+
+        document.getElementById('critSel').onchange = e => { crit = e.target.value; render(); };
+        document.getElementById('orderBtn').onclick = e => { order = order === 'desc' ? 'asc' : 'desc'; e.target.textContent = order === 'desc' ? '↓' : '↑'; render(); };
+    </script>
+</body>
+</html>

@@ -1,0 +1,81 @@
+# =====================================
+# .NET
+# =====================================
+bin/
+obj/
+out/
+publish/
+*.user
+*.userosscache
+*.suo
+*.sln.docstates
+
+# =====================================
+# IDE
+# =====================================
+.idea/
+.vscode/
+.vs/
+*.swp
+
+# =====================================
+# Python
+# =====================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.Python
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+*.log
+sentiment.log
+
+# =====================================
+# Environment & secrets
+# =====================================
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+service-account*.json
+gcp-key*.json
+
+# =====================================
+# Terraform
+# =====================================
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# =====================================
+# Kubernetes
+# =====================================
+*.kubeconfig
+kubeconfig
+
+# =====================================
+# Build artifacts & misc
+# =====================================
+*.tlog
+*.cache
+*.bak
+*.pdb
+node_modules/
+.DS_Store
+Thumbs.db

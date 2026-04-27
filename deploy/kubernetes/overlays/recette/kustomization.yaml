@@ -1,0 +1,51 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: quantia-recette
+
+namePrefix: recette-
+
+resources:
+  - ../../base
+
+commonLabels:
+  app.kubernetes.io/instance: quantia-recette
+  environment: recette
+
+images:
+  - name: ghcr.io/your-org/quantia-web
+    newName: europe-west1-docker.pkg.dev/REPLACE_WITH_RECETTE_PROJECT/quantia-recette-images/quantia-web
+    newTag: recette
+
+patches:
+  - target:
+      kind: Deployment
+      name: quantia-web
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 2
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: quantia-web
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 2
+      - op: replace
+        path: /spec/maxReplicas
+        value: 4
+  - target:
+      kind: ConfigMap
+      name: quantia-web-config
+    patch: |-
+      - op: replace
+        path: /data/ASPNETCORE_ENVIRONMENT
+        value: Staging
+  - target:
+      kind: Ingress
+      name: quantia-web
+    patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: recette.quantia.example.com

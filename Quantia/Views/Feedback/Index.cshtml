@@ -1,0 +1,81 @@
+
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewBag.Section = "Feedback";
+}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Feedback</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', sans-serif;
+            background-color: #f9fafb;
+        }
+
+        input[type="text"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        button {
+            background: linear-gradient(to right, #4f46e5, #3b82f6);
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+            button:hover {
+                opacity: 0.9;
+            }
+    </style>
+</head>
+<body>
+    <div style="display: flex;">
+
+        <div>
+            <h1 style="font-size: 28px;">Feedback</h1>
+            <p style="color: #6b7280;">We’d love to hear your thoughts about Quantia. Your feedback helps us improve.</p>
+
+            <div class="card2">
+                <form>
+                    <label for="type">Type of Feedback</label>
+                    <select id="type" name="type">
+                        <option>UI/UX Design</option>
+                        <option>Performance</option>
+                        <option>Bug Report</option>
+                        <option>Analysis Accuracy</option>
+                        <option>Other</option>
+                    </select>
+
+                    <label for="message">Your Feedback</label>
+                    <textarea id="message" name="message" rows="5" placeholder="Describe your experience or issue..."></textarea>
+
+                    <label for="rating">Rating</label>
+                    <select id="rating" name="rating">
+                        <option>★★★★★ - Excellent</option>
+                        <option>★★★★☆ - Good</option>
+                        <option>★★★☆☆ - Average</option>
+                        <option>★★☆☆☆ - Poor</option>
+                        <option>★☆☆☆☆ - Very Poor</option>
+                    </select>
+
+                    <button type="submit">Submit Feedback</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

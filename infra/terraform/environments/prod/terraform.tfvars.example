@@ -1,0 +1,12 @@
+project_id = "my-quantia-prod-project"
+region     = "europe-west1"
+zone       = "europe-west1-b"
+
+dags_git_repo = "https://github.com/your-org/PA_2025_UPGRADED.git"
+
+master_authorized_cidrs = [
+  {
+    cidr = "203.0.113.0/24"
+    name = "office-vpn"
+  }
+]

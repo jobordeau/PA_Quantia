@@ -1,0 +1,41 @@
+@using Quantia.Models.ViewModels
+@model IEnumerable<PortfolioRow>
+@{
+    ViewBag.Section = "Portfolio";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<h1>My Crypto Portfolio</h1>
+
+<table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+    <thead>
+        <tr style="background-color: #f3f4f6;">
+            <th style="padding: 10px; text-align: left;">Coin</th>
+            <th style="padding: 10px; text-align: right;">Qty</th>
+            <th style="padding: 10px; text-align: right;">Invested ($)</th>
+            <th style="padding: 10px; text-align: right;">Current Price ($)</th>
+            <th style="padding: 10px; text-align: right;">Value ($)</th>
+            <th style="padding: 10px; text-align: right;">PnL ($)</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var r in Model)
+        {
+            var pnlColor = r.PnL >= 0 ? "green" : "red";
+            <tr>
+                <td style="padding: 10px;">@r.Symbol</td>
+                <td style="padding: 10px; text-align: right;">@r.Quantity.ToString("F6")</td>
+                <td style="padding: 10px; text-align: right;">@r.Invested.ToString("F2")</td>
+                <td style="padding: 10px; text-align: right;">@r.CurrentPrice.ToString("F2")</td>
+                <td style="padding: 10px; text-align: right;">@r.CurrentValue.ToString("F2")</td>
+                <td style="padding: 10px; text-align: right; color:@pnlColor;">@r.PnL.ToString("F2")</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<div style="margin-top: 30px;">
+    <a href="@Url.Action("Create", "Portfolio")" style="padding: 10px 20px; background: #2563eb; color: white; border-radius: 5px; text-decoration: none;">
+        Simulate Buy
+    </a>
+</div>

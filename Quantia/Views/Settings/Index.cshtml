@@ -1,0 +1,96 @@
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@model Quantia.Models.UserModel
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewBag.Section = "Settings";
+}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Settings</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', sans-serif;
+            background-color: #f9fafb;
+        }
+
+
+        input[type="text"],
+        input[type="email"],
+        select {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .switch-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+            .switch-container input[type="checkbox"] {
+                margin-right: 10px;
+                width: 16px;
+                height: 16px;
+            }
+
+        button {
+            background: linear-gradient(to right, #4f46e5, #3b82f6);
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+            button:hover {
+                opacity: 0.9;
+            }
+    </style>
+</head>
+<body>
+    <div style="display: flex;">
+
+        <div>
+            <h1 style="font-size: 28px;">Settings</h1>
+            <p style="color: #6b7280;">Manage your preferences and account settings below.</p>
+
+            <div class="card2">
+                <form asp-action="Index" asp-controller="Settings" method="post">
+                    @Html.AntiForgeryToken()
+                    <label for="LastName">Last Name</label>
+                    <input asp-for="LastName" type="text" />
+                    <span asp-validation-for="LastName" class="text-danger"></span>
+
+                    <label for="email">Email</label>
+                    <input asp-for="Email" type="email"/>
+                    <span asp-validation-for="Email" class="text-danger"></span>
+
+                    <label for="theme">Theme</label>
+                    <select id="theme" name="theme">
+                        <option selected>Light</option>
+                        <option>Dark</option>
+                    </select>
+
+                    <div class="switch-container">
+                        <input type="checkbox" id="notifications" name="notifications" checked />
+                        <label for="notifications">Enable Notifications</label>
+                    </div>
+
+                    <button type="submit">Save Changes</button>
+
+                </form>
+
+            </div>
+        </div>
+    </div>
+</body>
+</html>

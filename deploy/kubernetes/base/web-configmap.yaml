@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: quantia-web-config
+  labels:
+    app.kubernetes.io/name: quantia-web
+    app.kubernetes.io/part-of: quantia
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  ML_API_BASE_URL: "https://api-test-049u.onrender.com"

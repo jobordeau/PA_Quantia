@@ -1,0 +1,92 @@
+@{
+    ViewBag.Section = "Dashboard";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<h1>Dashboard</h1>
+
+<style>
+
+
+.card{
+    position:relative;
+    padding:1.6rem;
+    background:#fff;
+    border-radius:8px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    transition: transform .2s, box-shadow .2s;
+    text-decoration:none;          /* pour les <a> */
+    color:inherit;
+    border: 1px solid #e5e7eb;
+    }
+.card:hover:not(.disabled){
+    transform:translateY(-4px);
+    box-shadow:0 4px 12px rgba(0,0,0,.12);
+}
+
+    .card {
+        background-color: #ffffff;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+        border: 1px solid #e5e7eb;
+    }
+/* Carte désactivée */
+.card.disabled{
+    opacity:0.55;
+    pointer-events:none;           /* bloque le clic */
+    cursor:not-allowed;
+}
+
+/* Badge “En développement” */
+.badge{
+    position:absolute;
+    top:12px; right:12px;
+    background:#ff9800;
+    color:#fff;
+    font-size:.75rem;
+    padding:2px 8px;
+    border-radius:12px;
+    font-weight:600;
+}
+
+</style>
+
+<!-- 🧩 2. CONTENU -------------------------------------------------------->
+<div class="dashboard-grid">
+
+    <div class="card" title="Fonctionnalité en cours de développement">
+        <a href="@Url.Action("Index", "Trade")" class="no-style">
+            <h3>Portfolio</h3>
+            <p>Build a collection of investments</p>
+        </a>
+    </div>
+    <!-- Carte en développement -->
+    <div class="card disabled" title="Fonctionnalité en cours de développement">
+        <span class="badge">En développement</span>
+        <h3>Follow Strategy</h3>
+        <p>Adopt a predefined trading strategy</p>
+    </div>
+
+    <!-- Carte en développement -->
+    <div class="card disabled" title="Fonctionnalité en cours de développement">
+        <span class="badge">En développement</span>
+        <h3>Create Strategy</h3>
+        <p>Define a custom trading strategy</p>
+    </div>
+
+    <!-- Carte en développement -->
+    <div class="card disabled" title="Fonctionnalité en cours de développement">
+        <span class="badge">En développement</span>
+        <h3>Track Assets</h3>
+        <p>Monitor the performance of active assets</p>
+    </div>
+
+    <!-- Carte en développement -->
+    <div class="card disabled" title="Fonctionnalité en cours de développement">
+        <span class="badge">En développement</span>
+        <h3>News Assets</h3>
+        <p>Track recent news of an asset</p>
+    </div>
+
+</div>

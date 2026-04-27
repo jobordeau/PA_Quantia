@@ -1,0 +1,96 @@
+@model Quantia.Models.TradeModel
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@{
+    ViewBag.Section = "Trade";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<h1>Start a New Trade</h1>
+
+<form asp-action="Create" method="post">
+    @Html.AntiForgeryToken()
+
+    <div class="card2">
+        <div class="form-group">
+            <label asp-for="CryptoSymbol">Crypto Symbol</label>
+            <label>
+                <select asp-for="CryptoSymbol" class="form-control" id="symbolSelect">
+                    <option value="BTCUSDT">BITCOIN</option>
+                    <option value="ETHUSDT">ETHERUM</option>
+                </select>
+            </label>
+            <span asp-validation-for="CryptoSymbol" class="text-danger"></span>
+        </div>
+
+        <div class="form-group">
+            <label asp-for="BuyPrice">Buy Price ($)</label>
+            <input asp-for="BuyPrice" type="number" step="0.01" class="form-control" />
+            <span asp-validation-for="BuyPrice" class="text-danger"></span>
+        </div>
+
+        <div class="form-group">
+            <label asp-for="Quantity">Quantity</label>
+            <input asp-for="Quantity" type="number" step="0.00000001" class="form-control" />
+            <span asp-validation-for="Quantity" class="text-danger"></span>
+        </div>
+
+        <div class="form-group">
+            <label asp-for="BuyDate">Buy Date</label>
+            <input asp-for="BuyDate"
+                   class="form-control"
+                   type="datetime-local"
+                   value="@Model.BuyDate.ToString("yyyy-MM-ddTHH:mm")" />
+            <span asp-validation-for="BuyDate" class="text-danger"></span>
+        </div>
+
+        <button type="submit" class="btn btn-primary mt-3">Start Trade</button>
+    </div>
+
+    <script>
+        function localToUtcStr(localStr) {
+          return new Date(localStr).toISOString().slice(0,16);   // trims seconds+Z
+        }
+
+        document.addEventListener("DOMContentLoaded", async () => {
+
+            // Récupère la valeur sélectionnée
+            const symbol = document.querySelector('#symbolSelect').value;
+
+            // Récupère la date de départ en local
+            const buyDateInput = document.querySelector('#BuyDate').value;
+
+            // Convertit en objet Date
+            let startDate = new Date(buyDateInput);
+
+            // Ajoute 1 jour
+            let endDate = new Date(startDate);
+
+            // Convertit les deux dates en format ISO (UTC)
+            const start = localToUtcStr(startDate);
+            const end = localToUtcStr(endDate);
+
+            // Construit l'URL avec les dates UTC
+            const url = `https://api-test-049u.onrender.com/pattern/load-data?symbol=${symbol}&start_date=${start}&end_date=${end}`;
+
+            try {
+                const response = await fetch(url);
+                const json = await response.json();
+                            if (json.data && json.data.length > 0) {
+                const closePrice = json.data[0].close;
+                console.log("Close price:", closePrice);
+
+                // Injecte la valeur dans le champ BuyPrice
+                document.querySelector('[name="BuyPrice"]').value = closePrice;
+            } else {
+                console.warn("Pas de données dans la réponse API");
+            }
+
+            } catch (error) {
+                console.error("Erreur lors du fetch :", error);
+            }
+        });
+
+    </script>
+
+</form>
+

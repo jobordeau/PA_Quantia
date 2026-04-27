@@ -1,0 +1,61 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: quantia-prod
+
+namePrefix: prod-
+
+resources:
+  - ../../base
+  - managed-certificate.yaml
+
+commonLabels:
+  app.kubernetes.io/instance: quantia-prod
+  environment: prod
+
+images:
+  - name: ghcr.io/your-org/quantia-web
+    newName: europe-west1-docker.pkg.dev/REPLACE_WITH_PROD_PROJECT/quantia-prod-images/quantia-web
+    newTag: prod
+
+patches:
+  - target:
+      kind: Deployment
+      name: quantia-web
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 3
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 250m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: quantia-web
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 3
+      - op: replace
+        path: /spec/maxReplicas
+        value: 10
+  - target:
+      kind: PodDisruptionBudget
+      name: quantia-web
+    patch: |-
+      - op: replace
+        path: /spec/minAvailable
+        value: 2
+  - target:
+      kind: Ingress
+      name: quantia-web
+    patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: quantia.example.com

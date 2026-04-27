@@ -1,0 +1,75 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: quantia-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: ${POSTGRES_DB:-quantia}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-quantia}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - quantia
+
+  web:
+    build:
+      context: .
+      dockerfile: Quantia/Dockerfile
+    container_name: quantia-web
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: http://+:8080
+      DOTNET_RUNNING_IN_CONTAINER: "true"
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-quantia};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-changeme}"
+      MlApi__BaseUrl: ${ML_API_BASE_URL:-https://api-test-049u.onrender.com}
+    ports:
+      - "${WEB_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - quantia
+
+  sentiment-job:
+    build:
+      context: ./sentiment_job
+      dockerfile: Dockerfile
+    container_name: quantia-sentiment-job
+    profiles: ["jobs"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PG_CONN: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-quantia}
+      REDDIT_CLIENT_ID: ${REDDIT_CLIENT_ID:-}
+      REDDIT_CLIENT_SECRET: ${REDDIT_CLIENT_SECRET:-}
+      USER_AGENT: ${USER_AGENT:-quantia-sentiment-bot/0.1.0}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ASSET: ${ASSET:-bitcoin}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    networks:
+      - quantia
+
+volumes:
+  postgres-data:
+    driver: local
+
+networks:
+  quantia:
+    driver: bridge

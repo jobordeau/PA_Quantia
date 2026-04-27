@@ -1,0 +1,73 @@
+@{
+    var currentSection = ViewBag.Section as string;
+
+    Func<string, string> isActiveSection = (section) =>
+    {
+        return section == currentSection ? "active" : "";
+    };
+}
+
+
+<style>
+    .sidebar_custom {
+        background-color: #ffffff;
+        padding: 20px;
+        width: 250px;
+        min-width: 250px;
+        height: auto;
+        min-height: 100vh;
+        border-right: 1px solid #e5e7eb;
+        font-family: 'Segoe UI', sans-serif;
+        box-sizing: initial;
+    }
+
+    .menu-item {
+        display: flex ;
+        align-items: center;
+        padding: 12px 16px;
+        margin-bottom: 10px;
+        border-radius: 10px;
+        text-decoration: none;
+        color: #374151;
+        font-weight: 500;
+        transition: background-color 0.2s ease;
+    }
+
+        .menu-item:hover {
+            background-color: #f3f4f6;
+        }
+
+        .menu-item.active {
+            background-color: #e0f2fe;
+            color: #2563eb;
+            font-weight: 600;
+        }
+
+    .menu-icon {
+        margin-right: 10px;
+    }
+</style>
+
+<div class="sidebar_custom">
+    <a href="@Url.Action("Index", "Dashboard")" class="menu-item @isActiveSection("Dashboard")">
+        <span class="menu-icon">🏠</span> Dashboard
+    </a>
+    <a href="@Url.Action("Index", "TechnicalAnalysis")" class="menu-item @isActiveSection("TechnicalAnalysis")">
+        <span class="menu-icon">📊</span> Technical Analysis
+    </a>
+    <a href="@Url.Action("Index", "SentimentAnalysis")" class="menu-item @isActiveSection("SentimentAnalysis")">
+        <span class="menu-icon">📈</span> Sentiment Analysis
+    </a>
+    <a href="@Url.Action("Index", "Prediction")" class="menu-item @isActiveSection("Prediction")">
+        <span class="menu-icon">🔮</span> Prediction
+    </a>
+    <a href="@Url.Action("Index", "TradeHistory")" class="menu-item @isActiveSection("TradeHistory")">
+        <span class="menu-icon">📋</span> Trade History
+    </a>
+    <a href="@Url.Action("Index", "Feedback")" class="menu-item @isActiveSection("Feedback")">
+        <span class="menu-icon">❗</span> Feedback
+    </a>
+    <a href="@Url.Action("Index", "Settings")" class="menu-item @isActiveSection("Settings")">
+        <span class="menu-icon">⚙️</span> Settings
+    </a>
+</div>

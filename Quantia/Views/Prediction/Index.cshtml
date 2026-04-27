@@ -1,0 +1,274 @@
+@model Quantia.Models.ViewModels.TradePredictionVM
+@using Newtonsoft.Json
+@{
+    ViewBag.Section = "Prediction";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var sigsJson = JsonConvert.SerializeObject(Model.Signals);
+}
+
+<h1>Prediction</h1>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous">
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" 
+integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous">    
+
+<script src="https://cdn.plot.ly/plotly-latest.min.js" integrity="sha384-tO9sf7DbNI60vZqNSXwKdISdW4NOWS4dtSYg4zXgsOsmKRcBPylcyxvzTC3N6ki2" crossorigin="anonymous"></script>
+<style>
+        /* styles identiques à la version précédente */
+        body{margin:0;font-family:'Segoe UI',sans-serif;background:#f9fafb;}
+        .main{padding:40px;flex-grow:1;}
+        .card{background:#fff;padding:20px;border-radius:10px;box-shadow:0 2px 5px rgba(0,0,0,.05);}
+        .prediction-high{background:rgba(0,255,0,.2);}
+        .prediction-medium{background:rgba(255,255,0,.2);}
+        .prediction-low{background:rgba(255,0,0,.2);}
+    </style>
+<body>
+    <div style="display:flex;">
+        <div class="main container-fluid">
+            <nav class="navbar navbar-light bg-light mb-4 rounded">
+                <a class="navbar-brand" href="/Prediction">Crypto Forecasting</a>
+                <ul class="nav">
+                    <li class="nav-item"><a class="nav-link active" href="/Prediction">Prediction Dashboard</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/Prediction/Pipeline">ML Pipeline</a></li>
+                </ul>
+            </nav>
+
+            <h1 class="mb-4">Cryptocurrency Price Prediction Visualization</h1>
+
+            <form id="config-form" class="row g-3 mb-4">
+                <div class="col-md-5">
+                    <label class="form-label">API URL</label>
+                    <input id="api-url" class="form-control" value="https://api-test-049u.onrender.com" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Symbol</label>
+                    <input id="symbol" class="form-control" value="BTCUSDT" />
+                </div>
+                <div class="col-md-2 d-flex align-items-md-center">
+                    <button class="btn btn-primary w-100">Fetch Predictions</button>
+                </div>
+            </form>
+
+            <div id="sample-data-alert" class="alert alert-warning" style="display:none;">
+                Ceci est un jeu de données d’exemple…
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white"><b id="chart-title">Price & Confidence</b></div>
+                <div class="card-body"><div id="price-chart" style="height:500px;"></div></div>
+            </div>
+
+            <div class="card">
+                <div class="card-header bg-primary text-white"><b>Prediction Details</b></div>
+                <div class="card-body">
+                    <table id="prediction-table" class="table table-striped table-hover">
+                        <thead><tr><th>Time</th><th>Price</th><th>Up Probability</th><th>Strategy</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* ----------------- Endpoints MVC ----------------- */
+        const endpointPredict = '/Prediction/GetPredictions';
+        const endpointRefresh = '/Prediction/RefreshModel';
+
+        document.addEventListener('DOMContentLoaded', ()=>{
+            fetchPredictions();
+            document.getElementById('config-form').addEventListener('submit',e=>{
+                e.preventDefault(); fetchPredictions();
+            });
+        });
+
+        function getStrategy(p){if(p>.75)return{a:'Strong Buy',c:'success'};
+            if(p>=.6)return{a:'Buy',c:'info'};
+            if(p>=.4)return{a:'Hold',c:'warning'};
+            if(p>=.25)return{a:'Sell',c:'secondary'};
+            return{a:'Strong Sell',c:'danger'};}
+
+        function fetchPredictions(){
+            const apiUrl=document.getElementById('api-url').value.trim();
+            const symbol=document.getElementById('symbol').value.trim();
+            console.log(JSON.stringify({apiUrl,symbol}));
+            fetch(endpointPredict,{
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({apiUrl,symbol})
+            })
+            .then(r=>r.json()).then(displayPredictions)
+            .catch(err=>alert('Fetch error: '+err));
+        }
+
+        /* --- displayPredictions identique à la version précédente --- */
+        function displayPredictions(data){
+            document.getElementById('sample-data-alert').style.display=data.is_sample?'block':'none';
+            document.getElementById('chart-title').textContent = `${data.symbol} Price with Prediction Confidence`;
+
+            const t=data.predictions.map(p=>new Date(p.timestamp_utc));
+            const y=data.predictions.map(p=>p.close);
+            const p=data.predictions.map(p=>p.prediction);
+            const colors=p.map(v=>`rgba(${Math.round(255*(1-v))},${Math.round(255*v)},0,.8)`);
+
+            Plotly.newPlot('price-chart',[
+                {x:t,y:y,mode:'lines',name:'Price',line:{width:2}},
+                {x:t,y:y,mode:'markers',name:'Confidence',
+                 marker:{size:12,color:colors,line:{width:1,color:'black'}},
+                 text:p.map(v=>v.toFixed(3)),
+                 hovertemplate:'%{x}<br>%{y:$,.2f}<br>pUp=%{text}<extra></extra>'}],
+                {margin:{t:30},xaxis:{title:'Time'},yaxis:{title:'Price (USDT)'}});
+
+            const tbody=document.querySelector('#prediction-table tbody');
+            tbody.innerHTML='';
+            data.predictions.forEach(pr=>{
+                const s=getStrategy(pr.prediction);
+                const tr=document.createElement('tr');
+                if(pr.prediction>.75)tr.classList.add('prediction-high');
+                else if(pr.prediction<.25)tr.classList.add('prediction-low');
+                else tr.classList.add('prediction-medium');
+
+                tr.innerHTML=`<td>${new Date(pr.timestamp_utc).toLocaleTimeString()}</td>
+                               <td>${pr.close.toLocaleString('en-US',{style:'currency',currency:'USD'})}</td>
+                               <td>${(pr.prediction*100).toFixed(2)} %</td>
+                               <td><span class="badge bg-${s.c}">${s.a}</span></td>`;
+                tbody.appendChild(tr);
+            });
+        }
+    </script>
+</body>
+<form id="trade-form">@Html.AntiForgeryToken()</form>
+
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+<div class="p-6 max-w-7xl mx-auto">
+    <h1 class="text-3xl font-bold text-cyan-400 mb-8 text-center">🚀 Live Trading Signals</h1>
+
+    <!-- Signaux -->
+    <div id="signals" class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"></div>
+
+    <!-- Positions ouvertes -->
+    <h2 class="text-xl mt-10 mb-4 font-semibold text-white">📈 Open Positions</h2>
+    <table class="min-w-full table-auto bg-gray-800 text-white rounded overflow-hidden">
+        <thead>
+            <tr class="bg-cyan-900 text-left text-sm uppercase">
+                <th class="p-2">Symbol</th>
+                <th class="p-2">Entry</th>
+                <th class="p-2">Current</th>
+                <th class="p-2">PnL $</th>
+                <th class="p-2">PnL %</th>
+            </tr>
+        </thead>
+        <tbody id="positions">
+            @foreach (var t in Model.ExecutedTrades.Where(e => e.SellDate == null))
+            {
+                <tr data-id="@t.Id" data-symbol="@t.CryptoSymbol" data-entry="@t.BuyPrice" data-qty="@t.Quantity">
+                    <td class="p-2">@t.CryptoSymbol</td>
+                    <td class="p-2">@t.BuyPrice</td>
+                    <td class="p-2 current">–</td>
+                    <td class="p-2 pnl">–</td>
+                    <td class="p-2 pnlpct">–</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@section Scripts {
+    <script>
+        const signals = JSON.parse('@Html.Raw(sigsJson)');
+        const grid = document.getElementById("signals");
+
+        function buildSignalCard(s) {
+            const sideColor = s.Side === "BUY" || s.Side === "LONG" ? "text-green-400" : "text-red-400";
+            return `
+            <div class="bg-gray-900 p-4 rounded-lg shadow hover:shadow-lg transition">
+                <h3 class="text-lg font-semibold ${sideColor} mb-2">${s.Side} – ${s.Symbol}</h3>
+                <ul class="text-sm space-y-1 text-gray-300">
+                    <li><strong>Entry:</strong> ${s.Entry}</li>
+                    <li><strong>SL:</strong> ${s.StopLoss}</li>
+                    <li><strong>TP:</strong> ${s.TakeProfit}</li>
+                    <li><strong>Confidence:</strong> ${(s.Confidence * 100).toFixed(1)}%</li>
+                </ul>
+                <button onclick="execTrade('${s.Symbol}', ${s.EntryPrice}, ${s.StopLoss}, ${s.TakeProfit})"
+                        class="mt-4 w-full bg-cyan-500 hover:bg-cyan-600 text-white font-medium py-1.5 rounded">
+                    Trade
+                </button>
+            </div>`;
+        }
+
+        function renderSignals() {
+            grid.innerHTML = signals.length
+                ? signals.map(buildSignalCard).join("")
+                : `<p class="text-gray-400 col-span-full text-center">No signal available</p>`;
+        }
+
+        async function execTrade(symbol, entry, sl, tp) {
+            const qty = prompt("Quantity ?", "0.001");
+            if (!qty || isNaN(qty)) return;
+
+            const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+
+            if (!token) {
+                alert("Security token missing");
+                return;
+            }
+
+            const model = {
+                CryptoSymbol: symbol,
+                Quantity: +qty,
+                BuyPrice: +entry,
+                StopLoss: +sl,
+                TakeProfit: +tp,
+                BuyDate: new Date().toISOString()
+            };
+
+            const response = await fetch('/Trade/Create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'RequestVerificationToken': token
+                },
+                body: JSON.stringify(model)
+            });
+
+            if (response.ok) {
+                location.reload();
+            } else {
+                const err = await response.text();
+                alert("Trade failed:\n" + err);
+            }
+        }
+
+        async function updateLivePnL() {
+            const rows = document.querySelectorAll("#positions tr");
+            for (const row of rows) {
+                const symbol = row.dataset.symbol;
+                const entry = parseFloat(row.dataset.entry);
+                const qty = parseFloat(row.dataset.qty);
+
+                try {
+                    const r = await fetch(`/data/${symbol}/last_candle`);
+                    const j = await r.json();
+                    const last = +j.price_usdt;
+
+                    const pnl = (last - entry) * qty;
+                    const pct = ((last - entry) / entry) * 100;
+
+                    row.querySelector(".current").textContent = last.toFixed(2);
+                    row.querySelector(".pnl").textContent = pnl.toFixed(2);
+                    row.querySelector(".pnlpct").textContent = pct.toFixed(2) + "%";
+
+                    row.classList.toggle("bg-green-900", pnl > 0);
+                    row.classList.toggle("bg-red-900", pnl < 0);
+                } catch {
+                    continue;
+                }
+            }
+
+            setTimeout(updateLivePnL, 10000);
+        }
+
+        renderSignals();
+        updateLivePnL();
+    </script>
+}
