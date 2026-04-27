@@ -1,56 +1,50 @@
 # Quantia
 
-Crypto trading insights platform. End-of-year project — Master's in Big Data
-& AI, ESGI.
+Plateforme d'analyse et d'insights pour le trading de cryptomonnaies. Projet de fin d'études — Master Big Data & AI, ESGI.
 
-Quantia is a **multi-service application** combining a .NET web app, a Python
-NLP pipeline for market sentiment, an Airflow data layer ingesting crypto
-prices into BigQuery, and a Terraform-managed deployment on GKE.
+Quantia est une **application multi-services** combinant une application web .NET, un pipeline NLP en Python pour le sentiment de marché, une couche de données Airflow ingérant les prix des cryptos dans BigQuery, et un déploiement géré par Terraform sur GKE (Google Kubernetes Engine).
 
-> **Note on the prediction API.** The ML model that powers the *Prediction*
-> page lives in a separate repository — [PA_ML](https://github.com/Saytk/PA_ML)
-> — and is consumed by the web app over HTTP. Its base URL is fully
-> configurable (`MlApi:BaseUrl`). All other components are in this repo.
+> **Note sur l'API de prédiction :** Le modèle de ML qui alimente la page *Prediction* réside dans un dépôt séparé — [PA_ML](https://github.com/Saytk/PA_ML) — et est consommé par l'application web via HTTP. Son URL de base est entièrement configurable (`MlApi:BaseUrl`). Tous les autres composants se trouvent dans ce dépôt.
 
 ---
 
-## Table of contents
+## Table des matières
 
-- [Architecture overview](#architecture-overview)
-- [Repository layout](#repository-layout)
-- [Quick start (Docker Compose)](#quick-start-docker-compose)
-- [Run the web app standalone](#run-the-web-app-standalone)
-- [Run the sentiment job standalone](#run-the-sentiment-job-standalone)
-- [Deploy to GCP](#deploy-to-gcp)
+- [Aperçu de l'architecture](#aperçu-de-larchitecture)
+- [Structure du dépôt](#structure-du-dépôt)
+- [Démarrage rapide (Docker Compose)](#démarrage-rapide-docker-compose)
+- [Exécution de l'app web (Standalone)](#exécution-de-lapp-web-standalone)
+- [Exécution du sentiment job (Standalone)](#exécution-du-sentiment-job-standalone)
+- [Déploiement sur GCP](#déploiement-sur-gcp)
 - [CI / CD](#ci--cd)
-- [Tech stack](#tech-stack)
-- [License](#license)
+- [Stack technique](#stack-technique)
+- [Licence](#licence)
 
 ---
 
-## Architecture overview
+## Aperçu de l'architecture
 
 ```
-            User ─► GKE Ingress ─► Quantia.Web (.NET 8) ─► Cloud SQL Postgres
+            Utilisateur ─► GKE Ingress ─► Quantia.Web (.NET 8) ─► Cloud SQL Postgres
                                               │
-                                              └─► PA_ML API (separate repo)
+                                              └─► PA_ML API (dépôt séparé)
                                                        ▲
-                                                       │ reads
+                                                       │ lecture
                                                        │
-        Airflow VM ─► Binance API ─► BigQuery (crypto_prices, 1m candles)
+        Airflow VM ─► Binance API ─► BigQuery (crypto_prices, bougies 1m)
               └────► sentiment_job (Docker) ─► Postgres (sentiment_*)
 ```
 
-Detailed architecture, data flows, and security boundaries:
+Architecture détaillée, flux de données et limites de sécurité :
 [`docs/architecture.md`](./docs/architecture.md).
 
 ---
 
-## Repository layout
+## Structure du dépôt
 
 ```
 .
-├── Quantia/                  # ASP.NET Core 8 MVC web app
+├── Quantia/                  # Application web ASP.NET Core 8 MVC
 │   ├── Controllers/
 │   ├── Models/
 │   ├── Services/
@@ -58,7 +52,7 @@ Detailed architecture, data flows, and security boundaries:
 │   ├── Views/
 │   ├── wwwroot/
 │   └── Dockerfile
-├── sentiment_job/            # Python NLP pipeline (Reddit + Trends + market)
+├── sentiment_job/            # Pipeline NLP Python (Reddit + Trends + Marché)
 │   ├── main.py
 │   ├── tech_indicators.py
 │   ├── requirements.txt
@@ -66,18 +60,18 @@ Detailed architecture, data flows, and security boundaries:
 ├── airflow/
 │   ├── dags/
 │   │   ├── crypto_ingestion_dag.py    # 1-minute BTC/ETH → BigQuery
-│   │   └── sentiment_pipeline_dag.py  # daily sentiment job
+│   │   └── sentiment_pipeline_dag.py  # Job de sentiment quotidien
 │   ├── tests/
 │   └── requirements.txt
-├── infra/terraform/          # GCP IaC (modular, dev/recette/prod)
+├── infra/terraform/          # GCP IaC (modulaire : dev/recette/prod)
 │   ├── modules/{vpc,gke,cloud_sql,bigquery,airflow_vm,artifact_registry}
 │   └── environments/{dev,recette,prod}
-├── deploy/kubernetes/        # Kustomize manifests for the web app
+├── deploy/kubernetes/        # Manifestes Kustomize pour l'app web
 │   ├── base/
 │   └── overlays/{dev,recette,prod}
-├── .github/workflows/        # CI + deploy + Terraform plan
-├── scripts/init.sql          # Postgres schema (used by docker-compose)
-├── docker-compose.yml        # Local dev: Postgres + web + sentiment job
+├── .github/workflows/        # CI + déploiement + Terraform plan
+├── scripts/init.sql          # Schéma Postgres (utilisé par docker-compose)
+├── docker-compose.yml        # Dev local : Postgres + web + sentiment job
 ├── docs/architecture.md
 ├── Quantia.sln
 ├── .env.example
@@ -86,26 +80,23 @@ Detailed architecture, data flows, and security boundaries:
 
 ---
 
-## Quick start (Docker Compose)
+## Démarrage rapide (Docker Compose)
 
-The fastest way to run the platform locally. Spins up Postgres (with the schema
-pre-loaded) and the .NET web app. The Python sentiment job is wired in too but
-hidden behind the `jobs` Compose profile (it's heavy — pulls torch and a spaCy
-model — so it only runs on demand).
+La méthode la plus rapide pour lancer la plateforme localement. Lance Postgres (avec le schéma pré-chargé) et l'application web .NET. Le job de sentiment Python est également configuré mais masqué derrière le profil Compose `jobs` (il est lourd — télécharge torch et un modèle spaCy — il ne s'exécute donc qu'à la demande).
 
-### Prerequisites
+### Prérequis
 
-- Docker 24+ and the Docker Compose v2 plugin
-- ~2 GB free RAM for the web stack; +4 GB if you also run the sentiment job
+- Docker 24+ et le plugin Docker Compose v2
+- ~2 Go de RAM libre pour la stack web ; +4 Go si vous lancez aussi le job de sentiment
 
-### 1. Configure environment
+### 1. Configurer l'environnement
 
 ```bash
 cp .env.example .env
 $EDITOR .env
 ```
 
-Minimum required to boot the web stack:
+Minimum requis pour démarrer la stack web :
 
 ```env
 POSTGRES_PASSWORD=changeme
@@ -113,80 +104,68 @@ WEB_PORT=8080
 ML_API_BASE_URL=https://api-test-049u.onrender.com
 ```
 
-To also run the sentiment job, fill in:
+Pour lancer aussi le job de sentiment, renseignez :
 
 ```env
 REDDIT_CLIENT_ID=...
 REDDIT_CLIENT_SECRET=...
-USER_AGENT=quantia-sentiment-bot/0.1.0 (by u/your_user)
+USER_AGENT=quantia-sentiment-bot/0.1.0 (par u/votre_utilisateur)
 OPENAI_API_KEY=sk-...
 ```
 
-### 2. Start the web stack
+### 2. Démarrer la stack web
 
 ```bash
 docker compose up --build
 ```
 
-This brings up:
-- `quantia-postgres` on `localhost:5432` — schema applied automatically from
-  `scripts/init.sql`.
-- `quantia-web` on `http://localhost:8080` — the ASP.NET Core app.
+Cela lance :
+- `quantia-postgres` sur `localhost:5432` — schéma appliqué automatiquement via `scripts/init.sql`.
+- `quantia-web` sur `http://localhost:8080` — l'application ASP.NET Core.
 
-Watch the healthcheck:
+Vérifiez la santé du service :
 
 ```bash
 curl -fsS http://localhost:8080/health
 # {"status":"ok","utc":"2025-..."}
 ```
 
-Open `http://localhost:8080`, register an account, and explore the dashboard.
+Ouvrez `http://localhost:8080`, créez un compte et explorez le tableau de bord.
 
-### 3. Run the sentiment job (optional)
+### 3. Lancer le job de sentiment (optionnel)
 
 ```bash
 docker compose --profile jobs run --rm sentiment-job
 ```
 
-This is a one-shot run: it crawls Reddit, scores sentiment, computes the
-market composite, and writes the result to Postgres. Subsequent calls
-back-fill any missing days.
-
-### 4. Stop / clean up
-
-```bash
-docker compose down                 # stop containers, keep DB volume
-docker compose down -v              # also drop the Postgres volume
-```
+C'est une exécution ponctuelle : il scanne Reddit, score le sentiment, calcule l'indice composite de marché et écrit le résultat dans Postgres. Les appels suivants comblent les jours manquants.
 
 ---
 
-## Run the web app standalone
+## Exécution de l'app web (Standalone)
 
-If you have the .NET 8 SDK installed and a Postgres instance reachable on
-`localhost:5432`:
+Si vous avez le SDK .NET 8 installé et une instance Postgres accessible sur `localhost:5432` :
 
 ```bash
-# 1. Bootstrap the database
+# 1. Initialiser la base de données
 psql -U postgres -d postgres -c "CREATE DATABASE quantia;"
 psql -U postgres -d quantia -f scripts/init.sql
 
-# 2. Configure the connection string
-export ConnectionStrings__DefaultConnection='Host=localhost;Port=5432;Database=quantia;Username=postgres;Password=YOUR_PASSWORD'
+# 2. Configurer la chaîne de connexion
+export ConnectionStrings__DefaultConnection='Host=localhost;Port=5432;Database=quantia;Username=postgres;Password=VOTRE_MOT_DE_PASSE'
 export MlApi__BaseUrl='https://api-test-049u.onrender.com'
 
-# 3. Run
+# 3. Lancer
 dotnet run --project Quantia
 ```
 
-The app will be available at `http://localhost:5194` (HTTP profile) or
-`https://localhost:7248` (HTTPS profile).
+L'application sera disponible sur `http://localhost:5194` (profil HTTP) ou `https://localhost:7248` (profil HTTPS).
 
 ---
 
-## Run the sentiment job standalone
+## Exécution du sentiment job (Standalone)
 
-If you'd rather run the Python pipeline outside Docker:
+Pour exécuter le pipeline Python en dehors de Docker :
 
 ```bash
 cd sentiment_job
@@ -195,78 +174,46 @@ pip install -r requirements.txt
 python -m spacy download en_core_web_sm
 
 cp .env.example .env
-$EDITOR .env                    # set PG_CONN, REDDIT_*, OPENAI_API_KEY
+$EDITOR .env                    # définissez PG_CONN, REDDIT_*, OPENAI_API_KEY
 
 python main.py
 ```
 
-The job is idempotent at the day-level: each run computes any missing days
-between `START_DATE` and today, then computes today's score.
+Le job est idempotent au niveau journalier : chaque exécution calcule les jours manquants entre `START_DATE` et aujourd'hui.
 
 ---
 
-## Deploy to GCP
+## Déploiement sur GCP
 
-The project provisions and deploys to three GCP environments: `dev`,
-`recette` (staging), and `prod`. The full procedure is:
+Le projet provisionne et déploie sur trois environnements GCP : `dev`, `recette` (staging), et `prod`.
 
-1. **Provision the infrastructure** with Terraform — see
-   [`infra/terraform/README.md`](./infra/terraform/README.md). Each
-   environment is a separate Terraform root and uses a GCS backend.
-2. **Configure GitHub Actions** with Workload Identity Federation (no static
-   keys), then set the per-environment GitHub variables and secrets that
-   `.github/workflows/deploy.yml` expects:
-
-   | Kind     | Name                                | Used for                                      |
-   |----------|-------------------------------------|-----------------------------------------------|
-   | Variable | `GCP_PROJECT_ID`                    | Project for the env                           |
-   | Variable | `GCP_REGION`                        | e.g. `europe-west1`                           |
-   | Variable | `GCP_AR_REPO`                       | e.g. `quantia-prod-images`                    |
-   | Variable | `GKE_CLUSTER_NAME`                  | e.g. `quantia-prod-gke`                       |
-   | Secret   | `GCP_WORKLOAD_IDENTITY_PROVIDER`    | WIF provider resource                         |
-   | Secret   | `GCP_DEPLOYER_SA`                   | Deployer GCP service account email            |
-   | Secret   | `GCP_TERRAFORM_SA`                  | Terraform GCP service account email           |
-   | Secret   | `DB_CONNECTION_STRING`              | Cloud SQL connection string (env-specific)    |
-3. **Push to the right branch** to trigger a deploy:
+1. **Provisionnement de l'infrastructure** avec Terraform — voir [`infra/terraform/README.md`](./infra/terraform/README.md).
+2. **Configuration de GitHub Actions** via Workload Identity Federation (pas de clés statiques), puis configuration des variables et secrets par environnement :
+   - `GCP_PROJECT_ID`, `GCP_REGION`, `GKE_CLUSTER_NAME`, `DB_CONNECTION_STRING`, etc.
+3. **Push sur la branche correspondante** pour déclencher le déploiement :
    - `develop` → `dev`
    - `release` → `recette`
-   - `main` or a `v*.*.*` tag → `prod`
-
-The deploy workflow builds & pushes both images to Artifact Registry, applies
-the matching Kustomize overlay to GKE, waits for the rollout, and runs an
-in-cluster `/health` smoke test.
+   - `main` ou tag `v*.*.*` → `prod`
 
 ---
 
 ## CI / CD
 
-| Workflow                    | Trigger                                   | What it does                                                         |
+| Workflow                    | Déclencheur                               | Action                                                               |
 |-----------------------------|-------------------------------------------|----------------------------------------------------------------------|
-| `ci.yml`                    | push / PR to `main`, `develop`, `release` | .NET build, Python lint+compile, Airflow DAG tests, Terraform fmt+validate (3 envs), Kustomize build (3 overlays), Docker image smoke build |
-| `deploy.yml`                | push to env branch / tag, manual dispatch | Build & push images to Artifact Registry, deploy to GKE via Kustomize, wait for rollout, smoke test |
-| `terraform-plan.yml`        | PR touching `infra/terraform/**`          | `terraform plan` per env, attached to the PR                         |
-
-All cloud authentication uses **Workload Identity Federation** — no JSON keys
-in repo secrets.
+| `ci.yml`                    | push / PR vers `main`, `develop`, `release` | Build .NET, lint Python, tests DAGs Airflow, Terraform fmt/validate, build images Docker |
+| `deploy.yml`                | push sur branche d'env / tag              | Build & push images vers Artifact Registry, déploiement GKE via Kustomize, test de santé |
+| `terraform-plan.yml`        | PR modifiant `infra/terraform/**`         | `terraform plan` par environnement, attaché en commentaire de la PR  |
 
 ---
 
-## Tech stack
+## Stack technique
 
-- **Web app:** ASP.NET Core 8 MVC, EF Core 9 (`Npgsql.EntityFrameworkCore.PostgreSQL`),
-  cookie authentication, BCrypt password hashing, Bootstrap 5 + jQuery.
-- **Sentiment pipeline:** Python 3.11, PRAW, spaCy + spaCy-langdetect,
-  CryptoBERT (HuggingFace `transformers`), Sentence-BERT, HDBSCAN, KeyBERT,
-  OpenAI GPT-4o-mini, pytrends, CoinGecko REST, psycopg2.
-- **Orchestration:** Apache Airflow 2.9 with the Google and Docker providers.
-- **Datastore:** PostgreSQL 16 (operational data) + BigQuery (analytical /
-  time-series).
-- **Cloud:** GCP — VPC, private GKE, Cloud SQL, BigQuery, Compute Engine VM
-  (Container-Optimized OS), Artifact Registry, Secret Manager, Cloud NAT, IAP.
-- **IaC & deploy:** Terraform 1.9, Kustomize, Docker, GitHub Actions.
+- **Web App :** ASP.NET Core 8 MVC, EF Core 9, authentification par cookie, BCrypt, Bootstrap 5.
+- **Sentiment Pipeline :** Python 3.11, PRAW, spaCy, CryptoBERT (Transformers), Sentence-BERT, HDBSCAN, KeyBERT, OpenAI GPT-4o-mini, pytrends, CoinGecko, psycopg2.
+- **Orchestration :** Apache Airflow 2.9.
+- **Stockage :** PostgreSQL 16 (données opérationnelles) + BigQuery (séries temporelles / analytique).
+- **Cloud (GCP) :** VPC, GKE privé, Cloud SQL, BigQuery, Artifact Registry, Secret Manager.
+- **IaC & Déploiement :** Terraform 1.9, Kubernetes, Docker, GitHub Actions.
 
 ---
-
-## License
-
-[MIT](./LICENSE)
