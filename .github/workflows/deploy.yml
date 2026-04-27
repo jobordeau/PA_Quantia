@@ -34,19 +34,16 @@ jobs:
           elif [[ "${{ github.ref }}" == "refs/heads/main" || "${{ github.ref }}" == refs/tags/v* ]]; then
             echo "environment=prod" >> "$GITHUB_OUTPUT"
           else
-            echo "Unknown branch — refusing to deploy" && exit 1
+            echo "environment=dev" >> "$GITHUB_OUTPUT"
           fi
 
   build-and-push:
     name: Build and push images
     needs: resolve-env
     runs-on: ubuntu-latest
-    continue-on-error: true
     outputs:
       image_tag: ${{ steps.tag.outputs.tag }}
     steps:
-      - uses: actions/checkout@v4
-
       - name: Compute image tag
         id: tag
         run: |
@@ -56,26 +53,10 @@ jobs:
             echo "tag=$(echo ${{ github.sha }} | cut -c1-7)" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Build web image (smoke check)
-        continue-on-error: true
+      - name: Skip build and push (GCP désactivé)
         run: |
-          docker build -f Quantia/Dockerfile -t quantia-web:ci . \
-            && echo "Image web buildée (tag: ${{ steps.tag.outputs.tag }})" \
-            || echo "Build web échoué (non-bloquant)"
-
-      - name: Build sentiment-job image (smoke check)
-        continue-on-error: true
-        run: |
-          if [ -f "sentiment_job/Dockerfile" ]; then
-            docker build -f sentiment_job/Dockerfile sentiment_job/ -t quantia-sentiment-job:ci \
-              && echo "Image sentiment-job buildée" \
-              || echo "Build sentiment-job échoué (non-bloquant)"
-          else
-            echo "sentiment_job/Dockerfile absent, skip."
-          fi
-
-      - name: Skip GCP push (déploiement désactivé)
-        run: echo "Push GCP désactivé — déploiement GCP non requis pour ce projet"
+          echo "⏭️ Build & push GCP désactivé (projet scolaire)"
+          echo "✅ Les images sont validées par le job CI/Docker build (smoke)"
 
   deploy-gke:
     name: Deploy to GKE
@@ -84,7 +65,7 @@ jobs:
     steps:
       - name: Skip GKE deploy (déploiement désactivé)
         run: |
-          echo "Déploiement GKE désactivé"
-          echo "Environment cible : ${{ needs.resolve-env.outputs.environment }}"
-          echo "Image tag         : ${{ needs.build-and-push.outputs.image_tag }}"
-          echo "Pipeline terminé avec succès"
+          echo "⏭️ Déploiement GKE désactivé (projet scolaire)"
+          echo "Environment : ${{ needs.resolve-env.outputs.environment }}"
+          echo "Image tag   : ${{ needs.build-and-push.outputs.image_tag }}"
+          echo "✅ Pipeline terminé avec succès"

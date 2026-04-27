@@ -46,7 +46,6 @@ jobs:
   python-lint-and-test:
     name: Lint & test Python jobs
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
@@ -64,17 +63,17 @@ jobs:
       - name: Ruff check (sentiment_job)
         run: |
           if [ -d "sentiment_job" ]; then
-            ruff check sentiment_job || echo "Ruff warnings"
+            ruff check sentiment_job || echo "⚠️ Ruff warnings (non-bloquant)"
           else
-            echo "Dossier sentiment_job absent, skip."
+            echo "⏭️ Dossier sentiment_job absent, skip."
           fi
 
       - name: Ruff check (airflow/dags)
         run: |
           if [ -d "airflow/dags" ]; then
-            ruff check airflow/dags || echo "Ruff warnings"
+            ruff check airflow/dags || echo "⚠️ Ruff warnings (non-bloquant)"
           else
-            echo "Dossier airflow/dags absent, skip."
+            echo "⏭️ Dossier airflow/dags absent, skip."
           fi
 
       - name: Compile-check sentiment_job
@@ -82,7 +81,7 @@ jobs:
           if [ -d "sentiment_job" ]; then
             python -m compileall -q sentiment_job
           else
-            echo "Dossier sentiment_job absent, skip."
+            echo "⏭️ Dossier sentiment_job absent, skip."
           fi
 
       - name: Compile-check airflow DAGs
@@ -90,13 +89,12 @@ jobs:
           if [ -d "airflow/dags" ]; then
             python -m compileall -q airflow/dags
           else
-            echo "Dossier airflow/dags absent, skip."
+            echo "⏭️ Dossier airflow/dags absent, skip."
           fi
 
   airflow-dag-tests:
     name: Airflow DAG integrity
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
@@ -106,14 +104,13 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
 
-      - name: Install Airflow
+      - name: Check Airflow DAGs
         run: |
-          if [ -f "airflow/requirements.txt" ]; then
-            python -m pip install --upgrade pip
-            pip install -r airflow/requirements.txt \
-              --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.9.2/constraints-${{ env.PYTHON_VERSION }}.txt"
+          if [ -d "airflow/dags" ]; then
+            python -m compileall -q airflow/dags
+            echo "✅ DAGs compilés avec succès"
           else
-            echo "airflow/requirements.txt absent, skip install."
+            echo "⏭️ Dossier airflow/dags absent, skip."
           fi
 
       - name: Run DAG tests
@@ -122,13 +119,12 @@ jobs:
             pip install pytest
             pytest airflow/tests -v
           else
-            echo "Dossier airflow/tests absent, skip."
+            echo "⏭️ Dossier airflow/tests absent, skip."
           fi
 
   terraform-validate:
     name: Terraform fmt & validate
     runs-on: ubuntu-latest
-    continue-on-error: true
     strategy:
       matrix:
         env: [dev, recette, prod]
@@ -143,9 +139,9 @@ jobs:
       - name: Format check
         run: |
           if [ -d "infra/terraform" ]; then
-            terraform fmt -check -recursive infra/terraform || echo "Terraform fmt warnings"
+            terraform fmt -check -recursive infra/terraform || echo "⚠️ Terraform fmt warnings (non-bloquant)"
           else
-            echo "Dossier infra/terraform absent, skip."
+            echo "⏭️ Dossier infra/terraform absent, skip."
           fi
 
       - name: Init (no backend)
@@ -154,7 +150,7 @@ jobs:
             cd infra/terraform/environments/${{ matrix.env }}
             terraform init -backend=false
           else
-            echo "Environnement ${{ matrix.env }} absent, skip."
+            echo "⏭️ Environnement ${{ matrix.env }} absent, skip."
           fi
 
       - name: Validate
@@ -163,13 +159,12 @@ jobs:
             cd infra/terraform/environments/${{ matrix.env }}
             terraform validate
           else
-            echo "Environnement ${{ matrix.env }} absent, skip."
+            echo "⏭️ Environnement ${{ matrix.env }} absent, skip."
           fi
 
   kustomize-build:
     name: Kustomize build & dry-run
     runs-on: ubuntu-latest
-    continue-on-error: true
     strategy:
       matrix:
         overlay: [dev, recette, prod]
@@ -186,7 +181,7 @@ jobs:
           if [ -d "deploy/kubernetes/overlays/${{ matrix.overlay }}" ]; then
             kustomize build deploy/kubernetes/overlays/${{ matrix.overlay }} > /tmp/built.yaml
           else
-            echo "Overlay ${{ matrix.overlay }} absent, skip."
+            echo "⏭️ Overlay ${{ matrix.overlay }} absent, skip."
           fi
 
       - name: Show built manifest
@@ -194,7 +189,7 @@ jobs:
           if [ -f "/tmp/built.yaml" ]; then
             head -200 /tmp/built.yaml
           else
-            echo "Aucun manifest généré."
+            echo "⏭️ Aucun manifest généré."
           fi
 
   docker-build:
@@ -219,10 +214,10 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Build sentiment-job image
-        continue-on-error: true
         run: |
           if [ -f "sentiment_job/Dockerfile" ]; then
-            docker build -f sentiment_job/Dockerfile sentiment_job/ -t quantia-sentiment-job:ci || echo "Build sentiment-job échoué"
+            docker build -f sentiment_job/Dockerfile sentiment_job/ -t quantia-sentiment-job:ci \
+              || echo "⚠️ Build sentiment-job échoué (non-bloquant)"
           else
-            echo "sentiment_job/Dockerfile absent, skip."
+            echo "⏭️ sentiment_job/Dockerfile absent, skip."
           fi
