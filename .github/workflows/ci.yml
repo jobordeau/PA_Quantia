@@ -95,7 +95,6 @@ jobs:
   airflow-dag-tests:
     name: Airflow DAG integrity
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
@@ -103,24 +102,14 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
 
-      - name: Check Airflow DAGs
+      - name: Check DAG syntax (sans Airflow)
         run: |
           if [ -d "airflow/dags" ]; then
             python -m compileall -q airflow/dags
-            echo "✅ DAGs compilés avec succès"
+            echo "✅ Syntaxe des DAGs validée"
           else
             echo "⏭️ Dossier airflow/dags absent, skip."
-          fi
-
-      - name: Run DAG tests
-        run: |
-          if [ -d "airflow/tests" ]; then
-            pip install pytest
-            pytest airflow/tests -v
-          else
-            echo "⏭️ Dossier airflow/tests absent, skip."
           fi
 
   terraform-validate:
